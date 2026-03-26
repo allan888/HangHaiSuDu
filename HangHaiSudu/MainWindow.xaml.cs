@@ -238,11 +238,85 @@ public partial class MainWindow : Window
             }
             path.Reverse();
 
+            // 1. 播放高亮连线动画
             for (int i = 0; i < path.Count - 1; i++)
             {
                 AddVisualEdge(path[i], path[i + 1], Brushes.OrangeRed, 4, 10);
                 AddVisualNode(path[i + 1], Brushes.OrangeRed);
                 await Task.Delay(40);
             }
+
+            // 2. 收集路径数据用于报表展示
+            var reportData = new List<PathDetailRecord>();
+            for (int i = 0; i < path.Count; i++)
+            {
+                var node = path[i];
+                
+                // 起点没有遭遇流速和对地航速
+                string currentStr = "-";
+                string sogStr = "-";
+                
+                if (i > 0)
+                {
+                    double vc = _oceanCurrents[node.K - 1]; // 到达该节点所经历的那个航段的流速
+                    double sog = node.V_stw + vc;
+                    currentStr = $"{vc:F1} 节";
+                    sogStr = $"{sog:F1} 节";
+                }
+
+                reportData.Add(new PathDetailRecord
+                {
+                    航段节点 = i == 0 ? "起点 (K=0)" : $"第 {node.K} 段",
+                    遭遇流速 = currentStr,
+                    指令对水航速 = $"{node.V_stw:F1} 节",
+                    实际对地航速 = sogStr,
+                    节点累计耗时 = $"{node.T:F2} 小时",
+                    节点累计油耗 = $"{node.G:F3} 吨"
+                });
+            }
+
+            // 3. 动态生成并弹出一个 WPF 窗口来展示表格
+            ShowResultWindow(reportData);
+        }
+
+        // 动态生成弹窗的辅助方法
+        private void ShowResultWindow(List<PathDetailRecord> data)
+        {
+            // 创建数据表格
+            var dataGrid = new DataGrid
+            {
+                ItemsSource = data,
+                AutoGenerateColumns = true,
+                IsReadOnly = true,
+                AlternatingRowBackground = new SolidColorBrush(Color.FromArgb(255, 240, 240, 240)),
+                HeadersVisibility = DataGridHeadersVisibility.Column,
+                GridLinesVisibility = DataGridGridLinesVisibility.All,
+                FontSize = 14,
+                Margin = new Thickness(10)
+            };
+
+            // 创建弹窗
+            var resultWindow = new Window
+            {
+                Title = "航线规划详细数据报表",
+                Width = 700,
+                Height = 400,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, // 设为主窗口的子窗口
+                Background = Brushes.White,
+                Content = dataGrid
+            };
+
+            // 显示弹窗
+            resultWindow.ShowDialog();
         }
     }
+public class PathDetailRecord
+{
+    public string 航段节点 { get; set; }
+    public string 遭遇流速 { get; set; }
+    public string 指令对水航速 { get; set; }
+    public string 实际对地航速 { get; set; }
+    public string 节点累计耗时 { get; set; }
+    public string 节点累计油耗 { get; set; }
+}
